@@ -1,21 +1,24 @@
-import pandas as pd
-import numpy as np
-import matplotlib.pyplot as plt
-import seaborn as sns
 import json
+import argparse
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder
 from keras.models import Model
 from keras.layers import LSTM, Activation, Dense, Dropout, Input, Embedding
 from keras.optimizers import RMSprop
 from keras.preprocessing.text import Tokenizer
-from keras.preprocessing import sequence
-from keras.utils import to_categorical
 from keras.callbacks import EarlyStopping
 from keras.utils import pad_sequences
 
 
 def RNN():
+    """
+    Creates a Recurrent Neural Networks (RNN)
+
+    Returns
+    -------
+    Model
+        The resulting neural network.
+    """
     inputs = Input(name='inputs',shape=[max_len])
     layer = Embedding(max_words,50,input_length=max_len)(inputs)
     layer = LSTM(64)(layer)
@@ -27,14 +30,37 @@ def RNN():
     model = Model(inputs=inputs,outputs=layer)
     return model
 
-def runModel(X, Y):
+def run_model(readme_dict: dict):
+    """
+    Trains the neural network model on GitHub readmes
+    to determine whether a repostiroy is related to bioinformatics.
+
+    Parameters
+    ----------
+    readme_dict: dict
+        The readme_dict object consisting of readmes as keys and
+        boolean value where True == bioinformatics as values.
+        
+    Returns
+    -------
+    Tokenizer
+        Tokenizer built on training dataset.
+    Model
+        Resulting trained Recurrent Neural Network model.
+    list
+        Test data containing readmes.
+    list
+        Test data containing boolean of bioinformatics topic.
+    """
+    is_bioinformatics = list(readme_dict.values())
 
     le = LabelEncoder()
-    Y = le.fit_transform(Y)
-    Y = Y.reshape(-1,1)
+    is_bioinformatics = le.fit_transform(is_bioinformatics)
+    is_bioinformatics = is_bioinformatics.reshape(-1,1)
 
     # Model
-    X_train,X_test,Y_train,Y_test = train_test_split(X,Y,test_size=0.15)
+
+    X_train,X_test,Y_train,Y_test = train_test_split(list(readme_dict.keys()),is_bioinformatics,test_size=0.15)
 
     global max_words
     global max_len
@@ -57,38 +83,70 @@ def runModel(X, Y):
     return tok, model, X_test, Y_test
 
 
-def evaluation(tok, model, X_test, Y_test):
-    test_sequences = tok.texts_to_sequences(X_test)
+def evaluation(tok: Tokenizer, model: Model, readme_test: list, is_bioinformatics_test: list):
+    """
+    Prints the loss and accuracy of the trained model using readmes and their associated bioinformatics status as test data.
+
+    Parameters
+    ----------
+    tok: Tokenizer
+        Tokenizer built on training dataset.
+    model: Model
+        Trained Recurrent Neural Network model.
+    readme_test: list
+        Test data containing readmes.
+    is_bioinformatics_test: list
+        Test data containing boolean of bioinformatics topic.
+    """
+    test_sequences = tok.texts_to_sequences(readme_test)
     test_sequences_matrix = pad_sequences(test_sequences,maxlen=max_len)
 
-    accr = model.evaluate(test_sequences_matrix,Y_test)
+    accr = model.evaluate(test_sequences_matrix,is_bioinformatics_test)
 
     print('Test set\n  Loss: {:0.3f}\n  Accuracy: {:0.3f}'.format(accr[0],accr[1]))
 
-def loadData():
-    # Load Data
+def load_data(bioinformatics_readme_path: str, non_bioinformatics_readme_path: str) -> dict:
+    """
+    Loads readme JSON files from bioinformatics repositories and non-bioinformatics repositories
+    into one dict that keeps track whether the readme is related to bioinformatics.
 
+    Parameters
+    ----------
+    bioinformatics_readme_path: str
+        Input file path for bioinformatics readme JSON.
+    non_bioinformatics_readme_path: str
+        Input file path for non-bioinformatics readme JSON.
+
+    Returns
+    -------
+    dict
+        Dict containing all readmes as keys and a boolean value (True = bioinformatics).
+    """
     ## Bioinformatics repos
-    with open('../data/bio-topic-with-readme.json') as f:
+    with open(bioinformatics_readme_path) as f:
         fileBio=json.load(f)
 
-    listBioReadMe = [i for i in fileBio.values()]
-    listIsBioinfo = ['isBioinfo' for i in range(len(listBioReadMe))]
-
     ## Non-bioinformatics repos
-    with open('../data/non-bio-topic-with-readme.json') as f:
+    with open(non_bioinformatics_readme_path) as f:
         fileNonBio=json.load(f)
 
-    listNonBioReadMe = [i for i in fileNonBio.values()]
-    listIsNotBioinfo = ['isNotBioinfo' for i in range(len(listNonBioReadMe))]
+    readme_dict = {}
 
-    # Group all together
-    listBioinfoTrueFalse = listIsNotBioinfo + listIsBioinfo
-    listAllReadme = listNonBioReadMe + listBioReadMe
-    return listBioinfoTrueFalse, listAllReadme
+    for key in fileBio:
+        readme_dict[fileBio[key]] = True
+    for key in fileNonBio:
+        readme_dict[fileNonBio[key]] = False
 
+    return readme_dict
 
 if __name__ == "__main__":
-   listBioinfoTrueFalse, listAllReadme = loadData()
-   tok, model, X_test, Y_test = runModel(listAllReadme, listBioinfoTrueFalse)
-   evaluation(tok, model, X_test, Y_test)
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-ib', '--input_bioinformatics', type=str,
+        help="Path to the json dict containing repository data related to bioinformatics.")
+    parser.add_argument('-in', '--input_not_bioinformatics', type=str,
+        help="Path to the json dict containing repository data not related to bioinformatics.")
+    args = parser.parse_args()
+
+    readme_dict = load_data(args.input_bioinformatics, args.input_not_bioinformatics)
+    tok, model, X_test, Y_test = run_model(readme_dict)
+    evaluation(tok, model, X_test, Y_test)
