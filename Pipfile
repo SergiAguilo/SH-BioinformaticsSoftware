@@ -7,6 +7,7 @@ name = "pypi"
 fastapi = "*"
 install = "*"
 uvicorn = {extras = ["standard"], version = "*"}
+tensorflow = "*"
 
 [dev-packages]
 

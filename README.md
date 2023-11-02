@@ -20,6 +20,6 @@ To run `train_top2vec_on_bioinformatics` please execute the following command:
 To run:
 
 ```
-uvicorn api.main:app --reload
+uvicorn api.main:app --host 0.0.0.0 --port 5300 --reload
 ```
 
