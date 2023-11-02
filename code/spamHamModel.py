@@ -8,6 +8,7 @@ from keras.optimizers import RMSprop
 from keras.preprocessing.text import Tokenizer
 from keras.callbacks import EarlyStopping
 from keras.utils import pad_sequences
+import pickle
 
 
 def RNN():
@@ -70,6 +71,12 @@ def run_model(readme_dict: dict):
     tok.fit_on_texts(X_train)
     sequences = tok.texts_to_sequences(X_train)
     sequences_matrix = pad_sequences(sequences,maxlen=max_len)
+
+
+    # saving
+    with open('tokenizer.pickle', 'wb') as handle:
+        pickle.dump(tok, handle, protocol=pickle.HIGHEST_PROTOCOL)
+
 
     model = RNN()
     model.summary()
